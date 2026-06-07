@@ -49,6 +49,8 @@ const INITIAL_ARMIES = [
   { id: 3, general: "Riboku",    faction: "Zhao", troops: 30000, x: 558, y: 198, color: "#b02020" },
   { id: 4, general: "Shibashou", faction: "Zhao", troops: 20000, x: 622, y: 308, color: "#8a1818" },
 ]
+const MOT_DE_PASSE = "étoiledefeu51"
+
 const GEN_NAMES = ["Kanki","Mouten","Ouhon","Yotanwa","Heki","Tou","Renpa","Kousen","Bajio","Gakuhaku"]
 
 function deepClone(v) { return JSON.parse(JSON.stringify(v)) }
@@ -71,6 +73,7 @@ export default function App() {
   const nextHqId      = useRef(3)
 
   const [loading, setLoading] = useState(true)
+  const [editMode, setEditMode] = useState(false)
   const [saving,  setSaving]  = useState(false)
 
   const [view, setView] = useState({ x: 0, y: 0, scale: 1 })
@@ -173,7 +176,7 @@ export default function App() {
 
   const startDrag = useCallback((e, type, item) => {
     e.stopPropagation()
-    if (isReplaying()) return
+    if (isReplaying() || !editMode) return
     setSelected({ type, id: item.id })
     const rect = svgRef.current.getBoundingClientRect()
     const pt   = screenToWorld(e.clientX - rect.left, e.clientY - rect.top)
@@ -262,33 +265,33 @@ export default function App() {
 
   // ── ajouts ──
   function addArmy() {
-    if (isReplaying()) return
+    if (isReplaying() || !editMode) return
     const id = nextArmyId.current++
     const f  = id % 2 === 0 ? "Qin" : "Zhao"
     const a  = { id, faction: f, general: GEN_NAMES[Math.floor(Math.random()*GEN_NAMES.length)], troops: Math.floor(Math.random()*18000)+2000, x: 120+Math.random()*560, y: 80+Math.random()*440, color: f==="Qin"?"#1a4db0":"#b02020" }
     setArmies(p => { const n=[...p,a]; armiesRef.current=n; persist({armies:n}); return n })
   }
   function addCity() {
-    if (isReplaying()) return
+    if (isReplaying() || !editMode) return
     const id = nextCityId.current++
     const c  = { id, name: `Ville ${id}`, x: 200+Math.random()*400, y: 100+Math.random()*400 }
     setCities(p => { const n=[...p,c]; citiesRef.current=n; persist({cities:n}); return n })
   }
   function addFeature(kind) {
-    if (isReplaying()) return
+    if (isReplaying() || !editMode) return
     const id = nextFeatureId.current++
     const base = { mountain:{name:"Montagnes",w:160,h:80}, plain:{name:"Plaine",w:220,h:90}, river:{name:"Rivière",w:70,h:600} }[kind]
     const f = { id, kind, x:150+Math.random()*400, y:80+Math.random()*300, ...base }
     setFeatures(p => { const n=[...p,f]; featuresRef.current=n; persist({features:n}); return n })
   }
   function addHq(faction) {
-    if (isReplaying()) return
+    if (isReplaying() || !editMode) return
     const id = nextHqId.current++
     const h  = { id, faction, name:`QG ${id}`, x:150+Math.random()*500, y:100+Math.random()*400 }
     setHqs(p => { const n=[...p,h]; hqsRef.current=n; persist({hqs:n}); return n })
   }
   function deleteSelected() {
-    if (isReplaying()) return
+    if (isReplaying() || !editMode) return
     const { type, id } = selected
     if (!type) return
     if (type === "army")    setArmies(p   => { const n=p.filter(a=>a.id!==id); armiesRef.current=n;   persist({armies:n});   return n })
@@ -298,7 +301,7 @@ export default function App() {
     setSelected({ type: null, id: null })
   }
   function updateItem(type, id, field, value) {
-    if (isReplaying()) return
+    if (isReplaying() || !editMode) return
     const numFields = ["troops","x","y","w","h"]
     const v = numFields.includes(field) ? parseFloat(value)||0 : value
     if (type === "army") setArmies(p => {
@@ -459,6 +462,16 @@ export default function App() {
           <div style={S.sideTitle}>⚔ CARTE DE GUERRE</div>
           <div style={S.dayLabel}>Jour {currentDay}</div>
           {saving && <div style={S.savingBadge}>💾 Sauvegarde...</div>}
+          <button style={S.editBtn} onClick={() => {
+            if (editMode) { setEditMode(false) }
+            else {
+              const pwd = prompt("Mot de passe :")
+              if (pwd === MOT_DE_PASSE) setEditMode(true)
+              else alert("Mot de passe incorrect")
+            }
+          }}>
+            {editMode ? "✏️ Mode édition actif" : "🔒 Verrouillé — cliquer pour éditer"}
+          </button>
         </div>
 
         <div style={S.sideBody}>
@@ -493,7 +506,7 @@ export default function App() {
           <div style={S.divider}/>
 
           <div style={S.sectionTitle}>Armées</div>
-          <button style={S.addBtn} onClick={addArmy}>＋ Armée</button>
+          <button style={S.addBtn} onClick={addArmy} disabled={!editMode} style={{...S.addBtn, opacity:editMode?1:0.4, cursor:editMode?"pointer":"default"}}>＋ Armée</button>
 
           <div style={S.sectionTitle}>QG</div>
           <div style={{ display:"flex", gap:4 }}>
@@ -595,4 +608,5 @@ const S = {
   inp:         { width:"100%", padding:"4px 7px", borderRadius:4, background:"#1a1208", border:"1px solid #5a3a1a", color:"#f0d890", fontSize:11, fontFamily:"Georgia,serif" },
   arrowBtnLg:  { background:"#2d1f0a", border:"1.5px solid #6a4820", color:"#e8c87a", fontSize:18, width:38, height:38, borderRadius:8, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 },
   nextDayBtn:  { flex:1, padding:"8px 6px", borderRadius:8, background:"#3a2010", border:"1.5px solid #8a5020", color:"#e8c87a", fontSize:12, cursor:"pointer", fontFamily:"Georgia,serif", fontWeight:"bold" },
+  editBtn:     { width:"100%", marginTop:6, padding:"5px 8px", borderRadius:5, background:"#1a1208", border:"1px solid #5a3a1a", color:"#a0c0a0", fontSize:10, cursor:"pointer", fontFamily:"Georgia,serif" },
 }
